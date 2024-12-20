@@ -1,0 +1,58 @@
+.t1 {
+	font-family: tahoma, verdana, sans serif;
+	color : #000000;
+	font-size : 8pt;
+}
+
+.t1:visited {
+	color : #000000;
+}
+
+.t2 {
+	font-family: arial, tahoma, verdana, sans serif;
+	color : #000000;
+	font-size : 11pt;
+}
+
+.t3 {
+	font-family: arial, tahoma, verdana, sans serif;
+	color : #cccccc;
+	font-size : 8pt;
+	text-decoration: none;
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
+.t4 {
+	font-family: arial, tahoma, verdana, sans serif;
+	color : #000000;
+	font-size : 7pt;
+}
+
+.z1 {
+	font-family: arial, tahoma, verdana, sans serif;
+	color : #ffffff;
+	font-size : 13pt;
+	font-weight: bold;
+	margin-top: 5px;
+	margin-bottom: 5px;
+	margin-left: 10px;
+}
+
+ul {
+	margin-top: 0px;
+	margin-bottom: 0px;
+	margin-left: 18px;
+}
+
+input {
+	font-family: tahoma;
+	color : #000000;
+	font-size : 8pt;
+}
+
+textarea {
+	font-family: tahoma;
+	color : #000000;
+	font-size : 9pt;
+}

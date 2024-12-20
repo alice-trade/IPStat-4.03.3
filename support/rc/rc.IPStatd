@@ -1,0 +1,97 @@
+#!/bin/sh
+#
+# chkconfig: 2345 91 10
+# description: Start/Stop the IPStat billing daemon
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#    Copyright (C) 2001-2004 The IPStat Project   http://ipstat.perm.ru
+#
+
+# Source function library.
+
+
+LOCKF=/var/lock/IPStat
+
+CONFIG=/opt/IPStat/etc/IPStat.cfg
+IPSTATD=/opt/IPStat/sbin/IPStat
+
+PPTPD=/opt/IPStat/sbin/pptpd
+PPTPD_CONF=/opt/IPStat/etc/pptpd.conf
+PPPD=/opt/IPStat/sbin/pppd
+
+PARAM="-d"
+
+[ -f $IPSTATD ] || exit 0
+[ -f $CONFIG ] || exit 0
+
+RETVAL=0
+
+case "$1" in
+  start)
+	echo -n $"Starting IPStat daemon: "
+	modprobe ip_queue >/dev/null 2>&1
+        LD_LIBRARY_PATH=/opt/IPStat/libs $IPSTATD $PARAM -C $CONFIG
+        RETVAL=$?
+        if [ -f "$PPTPD" ]; then
+            $PPTPD -c $PPTPD_CONF -e $PPPD
+        fi
+	RETVAL=$?
+	echo
+	[ $RETVAL -eq 0 ] && touch $LOCKF
+	;;
+	
+  stop)
+	echo -n $"Stopping IPStat daemon: "
+	if [ -f "$PPTPD" ]; then
+	    killall `basename $PPTPD`
+	fi
+	killall `basename $IPSTATD`
+	RETVAL=$?
+	echo
+	[ $RETVAL -eq 0 ] && rm -f $LOCKF
+	;;
+  reload)
+	echo -n $"Reloading IPStat daemon: "
+	killall `basename $IPSTATD` -HUP
+	RETVAL=$?
+	echo
+	;;
+  reloadlists)
+	echo -n $"Reloading Black and White lists: "
+	killall `basename $IPSTATD` -USR1
+	RETVAL=$?
+	echo
+	;;
+  restart)
+	$0 stop
+	sleep 3
+	$0 start
+	RETVAL=$?
+	;;
+  condrestart)
+	if [ -f $LOCKF ]; then
+		$0 stop
+		sleep 3
+		$0 start
+		RETVAL=$?
+	fi
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|restart|reload|reloadlists|condrestart}"
+	exit 1
+esac
+
+exit $RETVAL

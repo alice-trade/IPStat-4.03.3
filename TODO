@@ -1,0 +1,5 @@
+Futures:
+    - auth_ppp
+    - auth_mac
+    - Debian deb-package
+    - RH rpm-package

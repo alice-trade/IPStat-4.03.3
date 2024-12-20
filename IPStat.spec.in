@@ -1,0 +1,465 @@
+%define is_rh   %(test -e /etc/redhat-release && echo 1 || echo 0)
+%define is_fc   %(test -e /etc/fedora-release && echo 1 || echo 0)
+%define is_mdk  %(test -e /etc/mandrake-release && echo 1 || echo 0)
+%define is_suse %(test -e /etc/SuSE-release && echo 1 || echo 0)
+%define is_alt %(test -e /etc/altlinux-release && echo 1 || echo 0)
+%define is_trustix %(test -e /etc/trustix-release && echo 1 || echo 0)
+
+%if %{is_alt}
+%define alt_version %(cat /etc/asplinux-release | awk '{print $3}')
+%endif
+
+%if %{is_alt}
+%set_verify_elf_method arch=relaxed,fhs=relaxed,rpath=relaxed,stack=relaxed,textrel=relaxed,unresolved=relaxed
+%endif
+
+%define mysql_server 	localhost
+%define mysql_db	cisa
+%define mysql_user	root
+%define mysql_passwd	''
+
+
+## Target a specific arch and OS
+#
+# default is i386 linux
+%define target_cpu i386
+
+%if %{is_alt}
+%define target linux
+%define target_os alt
+%else
+%define target gnu
+%define target_os linux
+%endif
+
+%define native_version       @VERSION@
+
+## Override any system rpm macros
+#
+%define _arch %{target_cpu}
+%define _build_arch %{target_cpu}
+%define _vendor %{target_os}
+%define _host %{target_cpu}-pc-%{target_os}-%{target}
+%define _host_cpu %{target_cpu}
+%define _host_vendor %{target_os}
+%define optflags -march=%{target_cpu} -mtune=%{target_cpu} -O2
+
+
+
+## Version song and dance
+#
+# This should be the CISA version number. This gets massaged to
+# create the RPM version number, in a way that depends on the CISA
+# numbering scheme.
+
+%define version %(echo %{native_version} | awk -F\. '{print $1"."$2}')
+
+## Define output filename 
+# 
+# This creates filenames based upon the value of target_cpu defined above
+%define _build_name_fmt %{target_cpu}/%%{NAME}-%%{VERSION}-%%{RELEASE}.%{target_cpu}.rpm
+
+## Release and OS identification song and dance
+#
+# This identifies the lineage of the spec file. This file is the
+# standard one that comes with Tor; various distributions may
+# have their own ideas about the right ways to do things.
+
+# This spec is intended to build and install on multiple distributions
+# (someday). Detect the distribution we're building on.
+
+
+%if %{is_fc}
+%define ostag %(sed -e 's/^.*release /fc/' -e 's/ .*$//' -e 's/\\./_/g' < /etc/fedora-release)
+%else
+%if %{is_rh}
+%define ostag %(sed -e 's/^.*release /rh/' -e 's/ .*$//' -e 's/\\./_/g' < /etc/redhat-release)
+%endif
+%endif
+
+# These are probably wrong... just placeholders should we actually
+# end up supporting these distributions
+
+%if %{is_mdk}
+%define ostag mdk
+%endif
+
+%if %{is_suse}
+%define ostag suse
+%endif
+
+%if %{is_alt}
+%define ostag alt1
+%endif
+
+%if %{is_trustix}
+%define ostag tr
+%endif
+
+# Using the build date ensures that every build really does get
+# a different release number.  We use this trick for CVS versions.
+# For release versions, we don't want or need it.
+
+%define specver %(echo %{native_version} | awk -F\. '{print $3}')
+
+%define is_dev_version %(echo %{native_version} | grep 'dev' > /dev/null && echo 1 || echo 0)
+
+%if %{is_dev_version}
+%define blddate %(date -u +"%Y%m%d%H%M")
+%define release %{specver}.%{ostag}.%{blddate}
+%else
+%define release %{specver}.%{ostag}
+%endif
+
+## General-purpose macros
+#
+# Some systems don't have some macros. If a macro doesn't seem
+# to exist on your system, add it here...
+
+%if %{!?__make:1}%{?__make:0}
+%define __make make
+%endif
+
+%if %{!?make:1}%{?make:0}
+%define make %{__make}
+%endif
+
+%if %{!?_localstatedir:1}%{?_localstatedir:0}
+%define _localstatedir @LOCALSTATEDIR@
+%endif
+
+Summary: Billing system for small or middle office network
+Name: IPStat
+Version: %{version}
+Release: %{release}
+License: BSD
+Group: System Environment/Daemons
+URL: http://ipstat.perm.ru/
+Source0: http://ipstat.perm.ru/download/%{name}-%{native_version}.tar.gz
+Source1: pptpd-1.3.2.tar.gz
+Source2: ppp-2.4.2b3.tar.gz
+Source3: ppp-2.4.2-IPStat.tar.gz
+Source4: IPStat-web.tar.gz
+
+Patch0:  ppp-2.4.2-IPStat.patch
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+
+Requires: chkconfig, iptables, glibc, zlib
+
+%if %{is_alt}
+%if %{alt_version >= 12}
+BuildRequires: glib2
+%else
+BuildRequires: glib
+%endif
+%endif
+
+%if %{is_trustix}
+Requires: kerberos5-libs
+%else
+Requires: krb5-libs
+%endif
+
+BuildRequires: glibc-devel, iptables-devel, mysql-devel, openssl-devel, gcc, libpcap
+
+%if %{is_alt}
+%if %{alt_version >= 12}
+BuildRequires: glib2-devel
+%else
+BuildRequires: glib-devel
+%endif
+%endif
+
+%description
+The IPStat Project is a high performance and highly configurable billing system.
+
+%package web
+Summary: Module for Web Interface
+Group: System Environment/Daemons
+License: BSD
+%if %{is_trustix}
+Requires: IPStat, php, php-mysql, apache
+%else
+Requires: IPStat, php, php-mysql, httpd
+%endif
+%description web
+Module for Web Interface
+
+
+%package mod_netfilter
+Summary: NetFilter Collector Module
+Group: System Environment/Daemons
+License: BSD
+Requires: IPStat
+Conflicts: IPStat-mod_pcap
+
+%description mod_netfilter
+NetFilter Collector Module
+
+%package mod_pcap
+Summary: PCAP Collector Module
+Group: System Environment/Daemons
+License: BSD
+Requires: IPStat libpcap
+Conflicts: IPStat-mod_netfilter
+
+%description mod_pcap
+PCAP Collector Module
+
+
+%package mod_squid
+Summary: SQUID Collector Module
+Group: System Environment/Daemons
+License: BSD
+Requires: IPStat, squid >= 2.5
+
+%description mod_squid
+SQUID Collector Module
+
+%package mod_pppd
+Summary: PPPD Collector Module
+Group: System Environment/Daemons
+License: BSD
+Requires: IPStat
+
+%description mod_pppd
+PPPD Collector Module
+
+%package mod_time_policy
+Summary: Time Policy module
+Group: System Environment/Daemons
+License: BSD
+Requires: IPStat
+
+%description mod_time_policy
+IPStat module for Time Policy
+
+%prep
+%setup -q -n %{name}-%{native_version} -a 0 -a 1 -a 2 -a 3 -a 4
+%patch0 -p0
+
+
+%build
+
+cd ppp-2.4.2b3
+./configure
+make
+
+cd ../pptpd-1.3.2
+./configure --prefix=/opt/IPStat
+make
+
+cd ../
+./configure
+
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/etc
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/etc/{init.d,cron,httpd}
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/sbin
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/lib
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/www
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/log
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/run
+mkdir -p $RPM_BUILD_ROOT/opt/IPStat/tmp
+
+
+#install config-file
+%if %{is_suse}
+install -m 755 support/rc/IPStatd.suse $RPM_BUILD_ROOT/opt/IPStat/etc/init.d/IPStatd
+%else
+install -m 755 support/rc/rc.IPStatd $RPM_BUILD_ROOT/opt/IPStat/etc/init.d/IPStatd
+%endif
+install -m 644 support/conf/IPStat.cfg $RPM_BUILD_ROOT/opt/IPStat/etc/IPStat.cfg
+install -m 644 support/cron.d/IPStat $RPM_BUILD_ROOT/opt/IPStat/etc/cron/IPStat
+install -m 644 support/httpd/IPStat.conf $RPM_BUILD_ROOT/opt/IPStat/etc/httpd/IPStat.conf
+
+#install binary
+install -m 700 support/cron.d/IPStat-watch $RPM_BUILD_ROOT/opt/IPStat/sbin/IPStat-watch
+install -sm 700 src/IPStat $RPM_BUILD_ROOT/opt/IPStat/sbin/IPStat
+install -sm 707 redirector/redirector $RPM_BUILD_ROOT/opt/IPStat/sbin/redirector
+
+# install mysql-library
+install -sm 600 ipstat_mysql/.libs/libipstat_mysql.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_mysql.so
+
+#install modules
+install -sm 600 ipstat_collect_netfilter_time_ip/.libs/libipstat_collect_netfilter_time_ip.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_collect_netfilter_time_ip.so
+install -sm 600 ipstat_collect_pcap_time_ip/.libs/libipstat_collect_pcap_time_ip.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_collect_pcap_time_ip.so
+install -sm 600 ipstat_collect_squid/.libs/libipstat_collect_squid.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_collect_squid.so
+install -sm 600 ipstat_system/.libs/libipstat_system.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_system.so
+install -sm 600 ipstat_system_time_policy/.libs/libipstat_system_time_policy.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_system_time_policy.so
+install -sm 600 ipstat_system_group_limit/.libs/libipstat_system_group_limit.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_system_group_limit.so
+install -sm 600 ipstat_system_users_group_limit/.libs/libipstat_system_users_group_limit.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_system_users_group_limit.so
+install -sm 600 ipstat_collect_pppd/.libs/libipstat_collect_pppd.so.0.0.0 $RPM_BUILD_ROOT/opt/IPStat/lib/libipstat_collect_pppd.so
+
+install -m 600 support/pppd/conf/options.pptpd $RPM_BUILD_ROOT/opt/IPStat/etc/options.pptpd
+install -m 600 support/pppd/conf/pptpd.conf $RPM_BUILD_ROOT/opt/IPStat/etc/pptpd.conf
+
+install -m 700 ppp-2.4.2b3/pppd/pppd $RPM_BUILD_ROOT/opt/IPStat/sbin/pppd
+install -m 600 ppp-2.4.2b3/pppd/plugins/IPStat/ipstat.so $RPM_BUILD_ROOT/opt/IPStat/lib/ipstat.so
+install -m 700 pptpd-1.3.2/pptpctrl $RPM_BUILD_ROOT/opt/IPStat/sbin/pptpctrl
+install -m 700 pptpd-1.3.2/pptpd $RPM_BUILD_ROOT/opt/IPStat/sbin/pptpd
+
+#install www-files
+cp -R support/www/* $RPM_BUILD_ROOT/opt/IPStat/www
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+
+%post
+if [ $1 = 1 ]; then
+    ln -s /opt/IPStat/etc/init.d/IPStatd /etc/init.d/IPStatd
+    if [ -d "/etc/cron.d" ]; then 
+	ln -s /opt/IPStat/etc/cron/IPStat /etc/cron.d/IPStat
+    fi
+    
+    /sbin/chkconfig --add IPStatd
+    if [ -d "/etc/cron.d" ]; then
+	/etc/init.d/crond reload > /dev/null 2>&1
+    fi
+fi
+
+if [ $1 = 2 ]; then
+    /etc/init.d/IPStatd condrestart >/dev/null 2>&1
+fi
+
+%preun
+if [ $1 = 0 ]; then
+    /etc/init.d/IPStatd stop > /dev/null 2>&1 || :
+    /sbin/chkconfig --del IPStatd
+    
+fi
+if [ $1 = 1 ]; then
+    /etc/init.d/IPStatd condrestart > /dev/null 2>&1
+fi
+
+%postun
+if [ -d "/etc/cron.d" ]; then
+    /etc/init.d/crond reload > /dev/null 2>&1
+fi
+
+%post mod_netfilter
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+
+%postun mod_netfilter
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+
+%post mod_pcap
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+
+%postun mod_pcap
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+
+%post mod_pppd
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+
+%postun mod_pppd
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+
+%post mod_squid
+if [ $1 = 1 ]; then
+if [ `egrep "^\#+ *cache_access_log" /etc/squid/squid.conf | wc -l` -eq '0' ]; then
+    echo "cache_access_log /opt/IPStat/tmp/ipstat_squid.socket" >> /etc/squid/squid.conf
+else
+    perl -i -pe 's/.*cache_access_log .*$/cache_access_log \/opt\/IPStat\/tmp\/ipstat_squid.socket/' /etc/squid/squid.conf
+fi
+	                                                                                                                                                             
+if [ `egrep "^\#+ *redirect_program" /etc/squid/squid.conf | wc -l` -eq '0' ]; then
+    echo "redirect_program /opt/IPStat/sbin/redirector" >> /etc/squid/squid.conf
+else
+    perl -i -pe 's/.*redirect_program .*$/redirect_program \/opt\/IPStat\/sbin\/redirector/' /etc/squid/squid.conf
+fi
+	                                                                                                                                                             
+if [ `egrep "^\#+ *redirect_children" /etc/squid/squid.conf | wc -l` -eq '0' ]; then
+    echo "redirect_children 20" >> /etc/squid/squid.conf
+else
+    perl -i -pe 's/.*redirect_children .*$/redirect_children 20/' /etc/squid/squid.conf
+fi
+
+/etc/init.d/IPStatd condrestart > /dev/null 2>&1
+fi
+
+%postun mod_squid
+if [ $1 = 0 ]; then
+    perl -i -pe 's/.*cache_access_log .*$/\# cache_access_log \/var\/log\/squid\/access.log/' /etc/squid/squid.conf
+    perl -i -pe 's/.*redirect_program .*$/\# redirect_program none/' /etc/squid/squid.conf
+    perl -i -pe 's/.*redirect_children .*$/\# redirect_children 20/' /etc/squid/squid.conf
+
+    /etc/init.d/IPStatd condrestart > /dev/null 2>&1
+fi
+
+%post web
+/etc/init.d/httpd reload > /dev/null 2>&1
+
+%postun web
+/etc/init.d/httpd reload > /dev/null 2>&1
+
+%files
+%defattr(-,root,root,-)
+%config /opt/IPStat/etc/init.d/IPStatd
+%config (noreplace) /opt/IPStat/etc/IPStat.cfg
+%config /opt/IPStat/etc/cron/IPStat
+/opt/IPStat/lib/libipstat_mysql.so
+/opt/IPStat/lib/libipstat_system.so
+/opt/IPStat/lib/libipstat_system_group_limit.so
+/opt/IPStat/lib/libipstat_system_users_group_limit.so
+%attr(0777,root,root) /opt/IPStat/sbin
+/opt/IPStat/sbin/IPStat
+/opt/IPStat/sbin/IPStat-watch
+%attr(0700,root,root) %dir /opt/IPStat/log
+%attr(0777,root,root) %dir /opt/IPStat/run
+%attr(0777,root,root) %dir /opt/IPStat/tmp
+
+%files web
+%defattr(-,root,root,-)
+%config (noreplace) /opt/IPStat/etc/httpd/IPStat.conf
+%attr(0644,root,root) /opt/IPStat/www/classes/*
+%attr(0644,root,root) /opt/IPStat/www/content/*
+%attr(0644,root,root) /opt/IPStat/www/include/auth.php
+%config (noreplace) %attr(0666,root,root) /opt/IPStat/www/include/config.php
+%config (noreplace) %attr(0666,root,root) /opt/IPStat/www/include/connection.php
+%attr(0644,root,root) /opt/IPStat/www/design/template.php
+%attr(0644,root,root) /opt/IPStat/www/design/pics/*
+%attr(0644,root,root) /opt/IPStat/www/design/styles/*
+%attr(0644,root,root) /opt/IPStat/www/tmp
+%attr(0644,root,root) /opt/IPStat/www/index.php
+
+%files mod_netfilter
+%defattr(-,root,root,-)
+/opt/IPStat/lib/libipstat_collect_netfilter_time_ip.so
+
+%files mod_pcap
+%defattr(-,root,root,-)
+/opt/IPStat/lib/libipstat_collect_pcap_time_ip.so
+
+%files mod_pppd
+%defattr(-,root,root,-)
+%config (noreplace) /opt/IPStat/etc/options.pptpd
+%config (noreplace) /opt/IPStat/etc/pptpd.conf
+
+/opt/IPStat/lib/libipstat_collect_pppd.so
+/opt/IPStat/lib/ipstat.so
+/opt/IPStat/sbin/pppd
+
+/opt/IPStat/sbin/pptpctrl
+/opt/IPStat/sbin/pptpd
+
+%files mod_time_policy
+%defattr(-,root,root,-)
+/opt/IPStat/lib/libipstat_system_time_policy.so
+
+%files mod_squid
+%defattr(-,root,root,-)
+/opt/IPStat/lib/libipstat_collect_squid.so
+/opt/IPStat/sbin/redirector
+
+
+%changelog
+
+* Sat Jan 29 2005 Dmitry N. Kukuev <kornet@perm.ru>
+- create package IPStat ver. 4.00
+

@@ -1,0 +1,6 @@
+1: ./configure
+2: make
+3: sudo ./INSTALL.sh
+4: cd /opt/IPStat
+5: ln -s /opt/IPStat/etc/init.d/IPStatd /etc/init.d/IPStatd
+run: /etc/init.d/IPStatd start

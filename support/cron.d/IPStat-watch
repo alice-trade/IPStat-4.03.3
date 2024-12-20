@@ -1,0 +1,45 @@
+#!/bin/sh
+
+export PATH="/bin:/sbin:/usr/bin:/usr/sbin"
+
+log_dir="/opt/IPStat/log/IPStat.watch"
+STATUS="/var/lock/subsys/IPStat"
+
+DATE=`date`
+
+module_queue=`cat /proc/net/ip_queue 2>/dev/null`
+
+if [ -z "$module_queue" ];
+then
+ exit 1
+fi
+
+pid=`cat /proc/net/ip_queue | grep "Peer PID" | awk -F':' '{print $2}'`
+cur_len=`cat /proc/net/ip_queue | grep "Queue length" | awk -F':' '{print $2}'`
+max_len=`cat /proc/net/ip_queue | grep "Queue max. length" | awk -F':' '{print $2}'` 
+
+
+echo $pid" "$cur_len" "$max_len" "$status
+
+if [ $pid -eq 0 ];
+then
+    if [ -f $STATUS ];
+    then 
+	/etc/init.d/IPStatd start
+	echo $DATE >> $log_dir
+	echo "Start" >> $log_dir
+    fi
+fi
+
+if [ $cur_len -eq $max_len ];
+then
+    if [ -f $STATUS ];
+    then 
+	killall -9 IPStat
+        echo $DATE >> $log_dir
+	echo "Kill" >> $log_dir
+        sleep 2
+        /etc/init.d/IPStatd start
+        echo "Start" >> $log_dir
+    fi
+fi

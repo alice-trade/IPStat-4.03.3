@@ -1,0 +1,24 @@
+plugin /opt/IPStat/lib/ipstat.so
+
+debug
+lock
+
+default-mru
+
+ipcp-accept-local
+ipcp-accept-remote
+lcp-echo-failure 3
+lcp-echo-interval 60
+#deflate 0
+auth
+proxyarp
+#nobsdcomp
+#nodeflate
+
++chap
++mschap-v2
++mppe
++mppe-40
++mppe-128
+
+#ms-dns 192.168.0.1
